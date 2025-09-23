@@ -2,3 +2,6 @@ project_id = "cchvnudjrsoxqhibghbx"
 
 [functions.process-pdf]
 verify_jwt = false
+
+[functions.setup-demo-users]
+verify_jwt = false
