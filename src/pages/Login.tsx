@@ -8,7 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Building2, Eye, EyeOff, User, Mail } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
-import { supabase } from "@/integrations/supabase/client";
+
 
 const Login = () => {
   const navigate = useNavigate();
@@ -16,7 +16,7 @@ const Login = () => {
   const [isSignUp, setIsSignUp] = useState(false);
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const [setupLoading, setSetupLoading] = useState(false);
+  
   const [formData, setFormData] = useState({
     email: "",
     password: "",
@@ -24,35 +24,6 @@ const Login = () => {
     role: "employee",
   });
 
-  const setupDemoUsers = async () => {
-    setSetupLoading(true);
-    try {
-      const { data, error } = await supabase.functions.invoke('setup-demo-users');
-      
-      if (error) {
-        console.error('Setup error:', error);
-        toast({
-          title: "Setup Failed",
-          description: error.message || "Failed to setup demo users",
-          variant: "destructive",
-        });
-      } else {
-        toast({
-          title: "Demo Users Created",
-          description: "Demo users have been set up successfully. You can now login.",
-        });
-        console.log('Setup result:', data);
-      }
-    } catch (error) {
-      console.error('Setup error:', error);
-      toast({
-        title: "Setup Failed", 
-        description: "An error occurred while setting up demo users",
-        variant: "destructive",
-      });
-    }
-    setSetupLoading(false);
-  };
 
   useEffect(() => {
     if (user && profile) {
@@ -162,32 +133,6 @@ const Login = () => {
                 </Button>
               </form>
 
-              {/* Demo Credentials */}
-              <div className="bg-muted/50 p-3 rounded-md border border-border/50">
-                <p className="text-sm font-semibold text-foreground mb-2 flex items-center gap-2">
-                  <Building2 className="h-4 w-4" />
-                  Demo Credentials
-                </p>
-                <div className="space-y-1 text-xs text-muted-foreground">
-                  <div className="flex justify-between">
-                    <span className="font-medium">Admin:</span>
-                    <span className="font-mono">admin@demo.com / admin123</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="font-medium">Employee:</span>
-                    <span className="font-mono">employee@demo.com / employee123</span>
-                  </div>
-                </div>
-                <Button 
-                  onClick={setupDemoUsers}
-                  disabled={setupLoading}
-                  variant="outline"
-                  size="sm"
-                  className="w-full mt-2 text-xs"
-                >
-                  {setupLoading ? "Setting up..." : "Setup Demo Users"}
-                </Button>
-              </div>
             </TabsContent>
 
             <TabsContent value="signup" className="space-y-4 mt-6">
