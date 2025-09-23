@@ -129,6 +129,28 @@ const Login = () => {
                   {loading ? "Signing In..." : "Sign In"}
                 </Button>
               </form>
+
+              {/* Demo Credentials */}
+              <div className="bg-muted/50 p-3 rounded-md border border-border/50">
+                <p className="text-sm font-semibold text-foreground mb-2 flex items-center gap-2">
+                  <Building2 className="h-4 w-4" />
+                  Demo Credentials
+                </p>
+                <div className="space-y-1 text-xs text-muted-foreground">
+                  <div className="flex justify-between">
+                    <span className="font-medium">Admin:</span>
+                    <span className="font-mono">admin@kmrl.demo / admin123</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="font-medium">Employee 1:</span>
+                    <span className="font-mono">employee1@kmrl.demo / emp123</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="font-medium">Employee 2:</span>
+                    <span className="font-mono">employee2@kmrl.demo / emp123</span>
+                  </div>
+                </div>
+              </div>
             </TabsContent>
 
             <TabsContent value="signup" className="space-y-4 mt-6">
