@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Layout } from "@/components/Layout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -9,33 +9,48 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Upload, X, FileText, Users, Calendar } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface Employee {
   id: string;
-  name: string;
+  user_id: string;
+  full_name: string;
   department: string;
-  avatar: string;
+  role: string;
 }
 
 const AdminUpload = () => {
+  const { profile } = useAuth();
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     title: "",
     category: "",
     description: "",
-    priority: "",
+    priority: "medium",
     deadline: "",
   });
   
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [selectedEmployees, setSelectedEmployees] = useState<Employee[]>([]);
 
-  const employees: Employee[] = [
-    { id: "1", name: "John Doe", department: "Maintenance", avatar: "J" },
-    { id: "2", name: "Priya Nair", department: "Operations", avatar: "P" },
-    { id: "3", name: "Sarah Thomas", department: "Human Resources", avatar: "S" },
-    { id: "4", name: "Michael Chen", department: "Safety", avatar: "M" },
-    { id: "5", name: "Rajesh Kumar", department: "Technical", avatar: "R" },
-  ];
+  useEffect(() => {
+    fetchEmployees();
+  }, []);
+
+  const fetchEmployees = async () => {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('role', 'employee');
+
+    if (error) {
+      console.error('Error fetching employees:', error);
+    } else {
+      setEmployees(data || []);
+    }
+  };
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -57,17 +72,17 @@ const AdminUpload = () => {
   };
 
   const handleEmployeeSelect = (employeeId: string) => {
-    const employee = employees.find(emp => emp.id === employeeId);
-    if (employee && !selectedEmployees.find(emp => emp.id === employeeId)) {
+    const employee = employees.find(emp => emp.user_id === employeeId);
+    if (employee && !selectedEmployees.find(emp => emp.user_id === employeeId)) {
       setSelectedEmployees([...selectedEmployees, employee]);
     }
   };
 
   const handleEmployeeRemove = (employeeId: string) => {
-    setSelectedEmployees(selectedEmployees.filter(emp => emp.id !== employeeId));
+    setSelectedEmployees(selectedEmployees.filter(emp => emp.user_id !== employeeId));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!selectedFile) {
@@ -88,26 +103,112 @@ const AdminUpload = () => {
       return;
     }
 
-    // Mock upload success
-    toast({
-      title: "Document uploaded successfully",
-      description: `${formData.title} has been uploaded and assigned to ${selectedEmployees.length} employees`,
-    });
+    if (!profile) {
+      toast({
+        title: "Authentication Error",
+        description: "Please log in to upload documents",
+        variant: "destructive",
+      });
+      return;
+    }
 
-    // Reset form
-    setFormData({
-      title: "",
-      category: "",
-      description: "",
-      priority: "",
-      deadline: "",
-    });
-    setSelectedFile(null);
-    setSelectedEmployees([]);
+    setLoading(true);
+
+    try {
+      // Upload file to Supabase Storage
+      const fileExt = selectedFile.name.split('.').pop();
+      const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
+      const filePath = `documents/${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('documents')
+        .upload(filePath, selectedFile);
+
+      if (uploadError) {
+        throw uploadError;
+      }
+
+      // Get the public URL
+      const { data: { publicUrl } } = supabase.storage
+        .from('documents')
+        .getPublicUrl(filePath);
+
+      // Insert document record
+      const { data: document, error: dbError } = await supabase
+        .from('documents')
+        .insert({
+          title: formData.title,
+          category: formData.category,
+          description: formData.description,
+          priority: formData.priority,
+          file_url: publicUrl,
+          file_name: selectedFile.name,
+          uploaded_by: profile.user_id,
+        })
+        .select()
+        .single();
+
+      if (dbError) {
+        throw dbError;
+      }
+
+      // Create assignments if employees selected
+      if (selectedEmployees.length > 0) {
+        const assignments = selectedEmployees.map(emp => ({
+          document_id: document.id,
+          employee_id: emp.user_id,
+        }));
+
+        const { error: assignError } = await supabase
+          .from('document_assignments')
+          .insert(assignments);
+
+        if (assignError) {
+          console.error('Error creating assignments:', assignError);
+        }
+      }
+
+      // Process PDF in background
+      try {
+        await supabase.functions.invoke('process-pdf', {
+          body: {
+            documentId: document.id,
+            fileUrl: publicUrl,
+          },
+        });
+      } catch (processError) {
+        console.error('Error processing PDF:', processError);
+      }
+
+      toast({
+        title: "Document uploaded successfully",
+        description: `${formData.title} has been uploaded and assigned to ${selectedEmployees.length} employees`,
+      });
+
+      // Reset form
+      setFormData({
+        title: "",
+        category: "",
+        description: "",
+        priority: "medium",
+        deadline: "",
+      });
+      setSelectedFile(null);
+      setSelectedEmployees([]);
+
+    } catch (error: any) {
+      toast({
+        title: "Upload failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
-    <Layout userRole="admin" userName="Ravi Kumar">
+    <Layout userRole="admin" userName={profile?.full_name || "Admin"}>
       <div className="p-6 space-y-6">
         {/* Header */}
         <div>
@@ -261,10 +362,10 @@ const AdminUpload = () => {
                     </SelectTrigger>
                     <SelectContent>
                       {employees
-                        .filter(emp => !selectedEmployees.find(selected => selected.id === emp.id))
+                        .filter(emp => !selectedEmployees.find(selected => selected.user_id === emp.user_id))
                         .map((employee) => (
-                          <SelectItem key={employee.id} value={employee.id}>
-                            {employee.name} - {employee.department}
+                          <SelectItem key={employee.user_id} value={employee.user_id}>
+                            {employee.full_name} - {employee.department || 'No Department'}
                           </SelectItem>
                         ))}
                     </SelectContent>
@@ -276,18 +377,18 @@ const AdminUpload = () => {
                     <Label>Selected Employees ({selectedEmployees.length})</Label>
                     <div className="flex flex-wrap gap-2">
                       {selectedEmployees.map((employee) => (
-                        <Badge key={employee.id} variant="secondary" className="flex items-center space-x-2">
+                        <Badge key={employee.user_id} variant="secondary" className="flex items-center space-x-2">
                           <div className="w-6 h-6 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs">
-                            {employee.avatar}
+                            {employee.full_name.charAt(0)}
                           </div>
-                          <span>{employee.name}</span>
-                          <span className="text-xs opacity-75">{employee.department}</span>
+                          <span>{employee.full_name}</span>
+                          <span className="text-xs opacity-75">{employee.department || 'No Dept'}</span>
                           <Button
                             type="button"
                             variant="ghost"
                             size="sm"
                             className="h-4 w-4 p-0 ml-2"
-                            onClick={() => handleEmployeeRemove(employee.id)}
+                            onClick={() => handleEmployeeRemove(employee.user_id)}
                           >
                             <X className="h-3 w-3" />
                           </Button>
@@ -306,9 +407,9 @@ const AdminUpload = () => {
                   <Button type="button" variant="outline">
                     Cancel
                   </Button>
-                  <Button type="submit">
+                  <Button type="submit" disabled={loading}>
                     <Upload className="mr-2 h-4 w-4" />
-                    Upload Document
+                    {loading ? "Uploading..." : "Upload Document"}
                   </Button>
                 </div>
               </CardContent>

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Layout } from "@/components/Layout";
 import { DocumentViewModal } from "@/components/DocumentViewModal";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -7,6 +7,8 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { FileText, Search, Filter, Eye, Calendar, User, AlertTriangle, CheckCircle, Clock } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface Document {
   id: string;
@@ -27,50 +29,53 @@ interface Alert {
 }
 
 const EmployeeDashboard = () => {
+  const { profile } = useAuth();
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [selectedDocument, setSelectedDocument] = useState<Document | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [documents, setDocuments] = useState<Document[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const [documents] = useState<Document[]>([
-    {
-      id: "1",
-      title: "Safety Protocol Manual - Updated Version 3.2",
-      category: "Safety & Compliance",
-      description: "Updated safety protocols for metro operations including new emergency procedures and passenger guidelines.",
-      uploadDate: "15/01/2024",
-      status: "approved",
-      uploadedBy: "Ravi Kumar"
-    },
-    {
-      id: "2",
-      title: "Monthly Operations Report - December 2023",
-      category: "Operations", 
-      description: "Comprehensive monthly operations report covering ridership statistics, maintenance activities, and performance metrics.",
-      uploadDate: "08/01/2024",
-      status: "under_review",
-      uploadedBy: "System Auto"
-    },
-    {
-      id: "3",
-      title: "Staff Training Module - Customer Service",
-      category: "Human Resources",
-      description: "Customer service training materials for metro staff, covering communication skills, problem resolution, and service standards.",
-      uploadDate: "10/01/2024",
-      status: "approved",
-      uploadedBy: "HR Department"
-    },
-    {
-      id: "4",
-      title: "Technical Maintenance Schedule - Q1 2024",
-      category: "Maintenance",
-      description: "First quarter maintenance schedule for metro systems including rolling stock, signalling, and infrastructure maintenance.",
-      uploadDate: "05/01/2024",
-      status: "approved",
-      uploadedBy: "Technical Team"
+  useEffect(() => {
+    if (profile) {
+      fetchAssignedDocuments();
     }
-  ]);
+  }, [profile]);
+
+  const fetchAssignedDocuments = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('document_assignments')
+        .select(`
+          documents (*)
+        `)
+        .eq('employee_id', profile?.user_id);
+
+      if (error) {
+        console.error('Error fetching assigned documents:', error);
+      } else {
+        const formattedDocs = data?.map(assignment => {
+          const doc = assignment.documents as any;
+          return {
+            id: doc.id,
+            title: doc.title,
+            category: doc.category,
+            description: doc.summary || doc.parsed_text || 'No description available',
+            uploadDate: new Date(doc.created_at).toLocaleDateString('en-GB'),
+            status: doc.status as "approved" | "under_review" | "pending",
+            uploadedBy: "Admin"
+          };
+        }).filter(doc => doc.status === "approved") || [];
+        setDocuments(formattedDocs);
+      }
+    } catch (error) {
+      console.error('Error fetching documents:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const [alerts] = useState<Alert[]>([
     {
@@ -97,9 +102,9 @@ const EmployeeDashboard = () => {
   ]);
 
   const stats = {
-    assignedDocuments: 0,
-    completedTasks: 0,
-    pendingTasks: 0,
+    assignedDocuments: documents.length,
+    completedTasks: documents.filter(doc => doc.status === "approved").length,
+    pendingTasks: documents.filter(doc => doc.status === "under_review" || doc.status === "pending").length,
     unreadAlerts: 3
   };
 
@@ -157,7 +162,7 @@ const EmployeeDashboard = () => {
       <div className="p-6 space-y-6">
         {/* Header */}
         <div>
-          <h1 className="text-3xl font-bold text-foreground">Welcome back, Priya Nair!</h1>
+          <h1 className="text-3xl font-bold text-foreground">Welcome back, {profile?.full_name}!</h1>
           <p className="text-muted-foreground">Here are your assigned documents and recent updates</p>
         </div>
 
@@ -169,7 +174,7 @@ const EmployeeDashboard = () => {
                 <div>
                   <p className="text-sm font-medium text-muted-foreground">Assigned Documents</p>
                   <p className="text-3xl font-bold text-primary">{stats.assignedDocuments}</p>
-                  <p className="text-xs text-muted-foreground">4 new this week</p>
+                  <p className="text-xs text-muted-foreground">{stats.assignedDocuments} new this week</p>
                 </div>
                 <div className="p-3 bg-primary/10 rounded-full">
                   <FileText className="h-6 w-6 text-primary" />
@@ -289,6 +294,12 @@ const EmployeeDashboard = () => {
               </CardHeader>
               
               <CardContent>
+                {loading ? (
+                  <div className="text-center py-8">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+                    <p className="text-muted-foreground mt-2">Loading documents...</p>
+                  </div>
+                ) : (
                 <div className="space-y-4">
                   {filteredDocuments.map((doc) => (
                     <div key={doc.id} className="border rounded-lg p-4 hover:shadow-md transition-shadow">
@@ -335,13 +346,14 @@ const EmployeeDashboard = () => {
                     </div>
                   ))}
                   
-                  {filteredDocuments.length === 0 && (
+                  {filteredDocuments.length === 0 && !loading && (
                     <div className="text-center py-8">
                       <FileText className="mx-auto h-12 w-12 text-muted-foreground/50" />
                       <p className="text-muted-foreground mt-2">No documents found</p>
                     </div>
                   )}
                 </div>
+                )}
               </CardContent>
             </Card>
           </div>

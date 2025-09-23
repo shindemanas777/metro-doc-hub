@@ -1,10 +1,12 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Layout } from "@/components/Layout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { FileText, Users, Clock, CheckCircle, Upload, Eye, TrendingUp, AlertTriangle } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface Document {
   id: string;
@@ -18,35 +20,50 @@ interface Document {
 
 const AdminDashboard = () => {
   const navigate = useNavigate();
-  const [documents] = useState<Document[]>([
-    {
-      id: "1",
-      title: "Monthly Operations Report - December 2023",
-      category: "Operations",
-      uploadDate: "08/01/2024",
-      status: "pending",
-      assignedTo: "System Auto",
-      uploadedBy: "System Auto"
-    },
-    {
-      id: "2", 
-      title: "Technical Maintenance Schedule - Q1 2024",
-      category: "Maintenance",
-      uploadDate: "05/01/2024",
-      status: "approved",
-      assignedTo: "Maintenance Team",
-      uploadedBy: "Technical Team"
+  const { profile } = useAuth();
+  const [documents, setDocuments] = useState<Document[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchDocuments();
+  }, []);
+
+  const fetchDocuments = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('documents')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('Error fetching documents:', error);
+      } else {
+        const formattedDocs = data?.map(doc => ({
+          id: doc.id,
+          title: doc.title,
+          category: doc.category,
+          uploadDate: new Date(doc.created_at).toLocaleDateString('en-GB'),
+          status: doc.status as "pending" | "approved" | "rejected",
+          assignedTo: "System Auto",
+          uploadedBy: "Admin"
+        })) || [];
+        setDocuments(formattedDocs);
+      }
+    } catch (error) {
+      console.error('Error fetching documents:', error);
+    } finally {
+      setLoading(false);
     }
-  ]);
+  };
 
   const stats = {
-    totalDocuments: 156,
-    pendingReviews: 23,
-    approvedToday: 8,
-    totalUsers: 45,
+    totalDocuments: documents.length,
+    pendingReviews: documents.filter(doc => doc.status === "pending").length,
+    approvedToday: documents.filter(doc => doc.status === "approved").length, // Could be enhanced to filter by today
+    totalUsers: 45, // This could be fetched from profiles table
     systemUptime: "99.8%",
     avgProcessingTime: "2.3 days",
-    documentsThisMonth: 34
+    documentsThisMonth: documents.length // Could be enhanced to filter by month
   };
 
   const pendingDocuments = documents.filter(doc => doc.status === "pending");
@@ -65,7 +82,7 @@ const AdminDashboard = () => {
   };
 
   return (
-    <Layout userRole="admin" userName="Ravi Kumar">
+    <Layout userRole="admin" userName={profile?.full_name || "Admin"}>
       <div className="p-6 space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
@@ -163,7 +180,12 @@ const AdminDashboard = () => {
             <CardContent>
               <p className="text-sm text-muted-foreground mb-4">Documents waiting for your review and approval</p>
               <div className="space-y-4">
-                {pendingDocuments.length > 0 ? (
+                {loading ? (
+                  <div className="text-center py-8">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+                    <p className="text-muted-foreground mt-2">Loading documents...</p>
+                  </div>
+                ) : pendingDocuments.length > 0 ? (
                   pendingDocuments.map((doc) => (
                     <div key={doc.id} className="flex items-start space-x-3 p-3 border rounded-lg">
                       <div className="p-2 bg-primary/10 rounded">

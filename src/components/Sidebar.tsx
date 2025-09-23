@@ -2,6 +2,7 @@ import { Home, FileText, Upload, Users, Settings, BarChart3, LogOut, AlertTriang
 import { useNavigate, useLocation } from "react-router-dom";
 import { Button } from "./ui/button";
 import { Avatar, AvatarFallback } from "./ui/avatar";
+import { useAuth } from "@/contexts/AuthContext";
 import kmrlLogo from "@/assets/kmrl-logo.png";
 
 interface SidebarProps {
@@ -12,6 +13,7 @@ interface SidebarProps {
 export const Sidebar = ({ userRole, userName = "User" }: SidebarProps) => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { signOut } = useAuth();
 
   const adminMenuItems = [
     { icon: Home, label: "Dashboard", path: "/admin" },
@@ -31,7 +33,8 @@ export const Sidebar = ({ userRole, userName = "User" }: SidebarProps) => {
 
   const menuItems = userRole === "admin" ? adminMenuItems : employeeMenuItems;
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    await signOut();
     navigate("/");
   };
 
