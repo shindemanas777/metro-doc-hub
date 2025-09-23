@@ -170,11 +170,11 @@ const AdminUpload = () => {
 
       // Process PDF in background
       try {
-        console.log('Calling process-pdf function with:', { documentId: document.id, fileUrl: publicUrl });
+        console.log('Calling process-pdf function with:', { documentId: document.id, filePath });
         const { data, error } = await supabase.functions.invoke('process-pdf', {
           body: {
             documentId: document.id,
-            fileUrl: publicUrl,
+            filePath: filePath,
           },
         });
         

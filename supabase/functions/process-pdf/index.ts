@@ -20,16 +20,21 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    const { documentId, fileUrl } = await req.json();
-    console.log('Processing PDF:', documentId, fileUrl);
+    const { documentId, filePath } = await req.json();
+    console.log('Processing PDF:', documentId, filePath);
 
-    // Download the PDF file
-    const fileResponse = await fetch(fileUrl);
-    if (!fileResponse.ok) {
-      throw new Error('Failed to download PDF');
+    // Download the PDF file from Supabase Storage using service role
+    const { data: fileData, error: downloadError } = await supabaseClient
+      .storage
+      .from('documents')
+      .download(filePath);
+
+    if (downloadError || !fileData) {
+      console.error('Error downloading file from storage:', downloadError);
+      throw new Error(`Failed to download PDF from storage: ${downloadError?.message}`);
     }
 
-    const pdfBuffer = await fileResponse.arrayBuffer();
+    const pdfBuffer = await fileData.arrayBuffer();
     
     // For now, we'll use a simple text extraction approach
     // In production, you'd use a proper PDF parsing library
