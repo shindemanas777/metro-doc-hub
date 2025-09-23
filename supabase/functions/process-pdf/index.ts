@@ -8,6 +8,8 @@ const corsHeaders = {
 };
 
 serve(async (req) => {
+  console.log('Process PDF function called');
+  
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }

@@ -170,14 +170,31 @@ const AdminUpload = () => {
 
       // Process PDF in background
       try {
-        await supabase.functions.invoke('process-pdf', {
+        console.log('Calling process-pdf function with:', { documentId: document.id, fileUrl: publicUrl });
+        const { data, error } = await supabase.functions.invoke('process-pdf', {
           body: {
             documentId: document.id,
             fileUrl: publicUrl,
           },
         });
+        
+        if (error) {
+          console.error('Edge function error:', error);
+          toast({
+            title: "Processing Warning",
+            description: "Document uploaded but processing failed. Please contact admin.",
+            variant: "destructive",
+          });
+        } else {
+          console.log('PDF processing initiated:', data);
+        }
       } catch (processError) {
-        console.error('Error processing PDF:', processError);
+        console.error('Error calling process-pdf function:', processError);
+        toast({
+          title: "Processing Warning", 
+          description: "Document uploaded but processing failed. Please contact admin.",
+          variant: "destructive",
+        });
       }
 
       toast({
