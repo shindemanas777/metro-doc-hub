@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Layout } from "@/components/Layout";
+import { DocumentViewModal } from "@/components/DocumentViewModal";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -29,6 +30,8 @@ const EmployeeDashboard = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [categoryFilter, setCategoryFilter] = useState("all");
+  const [selectedDocument, setSelectedDocument] = useState<Document | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
   const [documents] = useState<Document[]>([
     {
@@ -137,6 +140,16 @@ const EmployeeDashboard = () => {
       default:
         return <AlertTriangle className="h-4 w-4" />;
     }
+  };
+
+  const handleViewDocument = (document: Document) => {
+    setSelectedDocument(document);
+    setIsModalOpen(true);
+  };
+
+  const handleCloseModal = () => {
+    setIsModalOpen(false);
+    setSelectedDocument(null);
   };
 
   return (
@@ -304,7 +317,11 @@ const EmployeeDashboard = () => {
                                 <div className="flex items-center space-x-2">
                                   {getStatusBadge(doc.status)}
                                   {doc.status === "approved" && (
-                                    <Button size="sm" variant="outline">
+                                    <Button 
+                                      size="sm" 
+                                      variant="outline"
+                                      onClick={() => handleViewDocument(doc)}
+                                    >
                                       <Eye className="mr-1 h-3 w-3" />
                                       View
                                     </Button>
@@ -358,6 +375,13 @@ const EmployeeDashboard = () => {
             </Card>
           </div>
         </div>
+
+        {/* Document View Modal */}
+        <DocumentViewModal
+          document={selectedDocument}
+          isOpen={isModalOpen}
+          onClose={handleCloseModal}
+        />
       </div>
     </Layout>
   );
