@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { FileText, Search, CheckCircle, X, Eye, Calendar, User, AlertTriangle, Loader2 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { AdminDocumentPreviewModal } from "@/components/AdminDocumentPreviewModal";
 
 interface PendingDocument {
   id: string;
@@ -18,10 +19,13 @@ interface PendingDocument {
   description: string;
   assignedEmployees: string[];
   priority: "high" | "medium" | "low";
+  status: string;
 }
 
 const AdminReview = () => {
   const [searchTerm, setSearchTerm] = useState("");
+  const [selectedDocument, setSelectedDocument] = useState<PendingDocument | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
   const queryClient = useQueryClient();
 
   // Fetch pending documents from Supabase
@@ -60,7 +64,8 @@ const AdminReview = () => {
         uploadedBy: profilesMap.get(doc.uploaded_by) || 'Unknown',
         description: doc.description || 'No description provided',
         assignedEmployees: [], // Will be populated from document_assignments if needed
-        priority: doc.priority as "high" | "medium" | "low"
+        priority: doc.priority as "high" | "medium" | "low",
+        status: doc.status
       })) as PendingDocument[];
     }
   });
@@ -140,6 +145,16 @@ const AdminReview = () => {
         variant: "destructive",
       });
     }
+  };
+
+  const handlePreview = (doc: PendingDocument) => {
+    setSelectedDocument(doc);
+    setIsModalOpen(true);
+  };
+
+  const handleCloseModal = () => {
+    setIsModalOpen(false);
+    setSelectedDocument(null);
   };
 
   const getPriorityBadge = (priority: string) => {
@@ -312,7 +327,11 @@ const AdminReview = () => {
                                 )}
                                 Reject
                               </Button>
-                              <Button size="sm" variant="outline">
+                              <Button 
+                                size="sm" 
+                                variant="outline"
+                                onClick={() => handlePreview(doc)}
+                              >
                                 <Eye className="mr-2 h-4 w-4" />
                                 Preview
                               </Button>
@@ -334,6 +353,14 @@ const AdminReview = () => {
           </CardContent>
         </Card>
       </div>
+
+      <AdminDocumentPreviewModal
+        document={selectedDocument}
+        isOpen={isModalOpen}
+        onClose={handleCloseModal}
+        onApprove={handleApprove}
+        onReject={handleReject}
+      />
     </Layout>
   );
 };
